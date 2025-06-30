@@ -1,3 +1,1 @@
-# kafka
-# exampleKafka
-make restart для запуска
+# make restart для запуска
