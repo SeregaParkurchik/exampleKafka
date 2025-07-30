@@ -1,12 +1,9 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func LoadDSN() string {
@@ -25,21 +22,4 @@ func LoadDSN() string {
 		host, port, user, password, dbname)
 
 	return dsn
-}
-
-func New(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
-
-	poolConfig, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		log.Printf("ERROR: Ошибка при парсинге DSN: %v", err)
-		return nil, fmt.Errorf("ошибка при парсинге строки подключения: %w", err)
-	}
-
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		log.Printf("ERROR: Ошибка при создании пула соединений: %v", err)
-		return nil, fmt.Errorf("ошибка при создании пула соединений: %w", err)
-	}
-
-	return pool, nil
 }

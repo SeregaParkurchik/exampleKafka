@@ -21,6 +21,23 @@ func NewPostgresStorage(pool *pgxpool.Pool) ConsumerStorage {
 	return &postgresStorage{pool: pool}
 }
 
+func New(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		log.Printf("ERROR: Ошибка при парсинге DSN: %v", err)
+		return nil, fmt.Errorf("ошибка при парсинге строки подключения: %w", err)
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		log.Printf("ERROR: Ошибка при создании пула соединений: %v", err)
+		return nil, fmt.Errorf("ошибка при создании пула соединений: %w", err)
+	}
+
+	return pool, nil
+}
+
 func (s *postgresStorage) SaveEvent(ctx context.Context, event models.UserActivityEvent) error {
 	jsonData, err := event.DataToJson()
 	if err != nil {
