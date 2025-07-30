@@ -1,0 +1,147 @@
+services: 
+  zookeeper: 
+    image: confluentinc/cp-zookeeper:7.7.1 
+    hostname: zookeeper 
+    container_name: zookeeper 
+    ports: 
+      - "2181:2181" 
+    environment: 
+      ZOOKEEPER_CLIENT_PORT: 2181 
+      ZOOKEEPER_TICK_TIME: 2000 
+      ZOOKEEPER_SERVER_ID: 1 
+      ZOOKEEPER_INIT_LIMIT: 3 
+      ZOOKEEPER_SYNC_LIMIT: 2 
+    networks: 
+      - kafka-net 
+
+  kafka1: 
+    image: confluentinc/cp-server:7.7.1 
+    hostname: kafka1 
+    container_name: kafka1 
+    depends_on: 
+      - zookeeper 
+    ports: 
+      - "${KAFKA_BROKER_1_EXTERNAL_PORT}:9091"
+    environment: 
+      KAFKA_BROKER_ID: 1 
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181' 
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT 
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:${KAFKA_BROKER_1_INTERNAL_PORT},PLAINTEXT_HOST://localhost:${KAFKA_BROKER_1_EXTERNAL_PORT}
+    networks: 
+      - kafka-net 
+
+  kafka2: 
+    image: confluentinc/cp-server:7.7.1 
+    hostname: kafka2 
+    container_name: kafka2 
+    depends_on: 
+      - zookeeper 
+    ports: 
+      - "$KAFKA_BROKER_2_EXTERNAL_PORT:9092" 
+    environment: 
+      KAFKA_BROKER_ID: 2 
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181' 
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT 
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:${KAFKA_BROKER_2_INTERNAL_PORT},PLAINTEXT_HOST://localhost:${KAFKA_BROKER_2_EXTERNAL_PORT}
+    networks: 
+      - kafka-net 
+
+  kafka3: 
+    image: confluentinc/cp-server:7.7.1 
+    hostname: kafka3 
+    container_name: kafka3 
+    depends_on: 
+      - zookeeper 
+    ports: 
+      - "${KAFKA_BROKER_3_EXTERNAL_PORT}:9093" 
+    environment: 
+      KAFKA_BROKER_ID: 3 
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181' 
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT 
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:${KAFKA_BROKER_3_INTERNAL_PORT},PLAINTEXT_HOST://localhost:${KAFKA_BROKER_3_EXTERNAL_PORT} 
+    networks: 
+      - kafka-net 
+
+  kafka-ui: 
+    container_name: kafka-ui 
+    image: provectuslabs/kafka-ui:latest 
+    ports: 
+      - 9020:8080 
+    environment: 
+      AUTH_TYPE: DISABLED 
+      KAFKA_CLUSTERS_0_NAME: local 
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: ${KAFKA_BROKERS}
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181 
+    depends_on: 
+      - kafka1 
+      - kafka2 
+      - kafka3 
+    networks: 
+      - kafka-net 
+
+  # Добавляем сервис PostgreSQL 
+  postgres: 
+    image: postgres:16-alpine 
+    hostname: postgres 
+    container_name: postgres 
+    ports: 
+      - "${PG_PORT}:${PG_PORT}" 
+    environment: 
+      POSTGRES_DB: ${PG_DBNAME} 
+      POSTGRES_USER: ${PG_USER} 
+      POSTGRES_PASSWORD: ${PG_PASSWORD} 
+    volumes: 
+      - ../migrations/init.sql:/docker-entrypoint-initdb.d/init.sql 
+    networks: 
+      - kafka-net 
+
+  # Добавляем сервис app-producer 
+  app-producer: 
+    build: 
+      context: .. 
+      dockerfile: app-producer/Dockerfile 
+    hostname: app-producer 
+    container_name: app-producer 
+    ports: 
+      - "${APP_PRODUCER_HTTP_PORT}:${APP_PRODUCER_HTTP_PORT}"
+    environment: 
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      KAFKA_TOPIC: ${KAFKA_TOPIC}       
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID} 
+      HTTP_PORT: ${APP_PRODUCER_HTTP_PORT}
+    depends_on: 
+      - kafka1 
+    networks: 
+      - kafka-net 
+
+  # Добавляем сервис app-consumer 
+  app-consumer: 
+    build: 
+      context: .. 
+      dockerfile: app-consumer/Dockerfile 
+    hostname: app-consumer 
+    container_name: app-consumer 
+    restart: always 
+    environment: 
+      KAFKA_BROKERS: ${KAFKA_BROKERS} 
+      KAFKA_TOPIC: ${KAFKA_TOPIC}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID}
+      PG_HOST: ${PG_HOST} 
+      PG_PORT: ${PG_PORT} 
+      PG_USER: ${PG_USER} 
+      PG_PASSWORD: ${PG_PASSWORD} 
+      PG_DBNAME: ${PG_DBNAME} 
+    depends_on: 
+      - kafka1 
+      - kafka2 
+      - kafka3 
+      - postgres 
+    networks: 
+      - kafka-net 
+
+networks: 
+  kafka-net: 
+    driver: bridge 
+
+volumes: 
+  postgres_data: 
